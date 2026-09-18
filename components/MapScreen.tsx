@@ -55,7 +55,7 @@ const MapScreen: React.FC = () => {
       let location = await Location.getCurrentPositionAsync({})
       setUserLocation(location.coords as UserLocation)
     }
-    getLocation()
+    getLocation().catch(error => console.warn("Не удалось определить местоположение:", error))
   }, [])
 
   useEffect(() => {
@@ -152,14 +152,14 @@ const MapScreen: React.FC = () => {
         ))}
       </MapView>
       <Modal animationType="slide" transparent={true} visible={filterModalVisible}>
-        <View style={{ backgroundColor: Colors[colorScheme ?? 'light'].background, ...styles.modalContainer }}>
+        <View style={{ backgroundColor: Colors[colorScheme === 'dark' ? 'dark' : 'light'].background, ...styles.modalContainer }}>
           {servicesAvailable.map((service) => (
             <TouchableOpacity
               key={service}
               style={[styles.serviceButton, selectedServices.includes(service) && styles.selectedServiceButton]}
               onPress={() => toggleService(service)}
             >
-              <Text style={{ ...styles.buttonText, color: Colors[colorScheme ?? 'light'].text }}>{service}</Text>
+              <Text style={{ ...styles.buttonText, color: Colors[colorScheme === 'dark' ? 'dark' : 'light'].text }}>{service}</Text>
             </TouchableOpacity>
           ))}
           <TouchableOpacity style={styles.button} onPress={resetFilters}>
@@ -193,7 +193,7 @@ const MapScreen: React.FC = () => {
                     </View>
                     <View style={styles.detailButtonContainer}>
                       <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
-                        <IconSymbol size={28} name="clear" color={'black'} />
+                        <IconSymbol size={28} name="xmark" color={'black'} />
                       </TouchableOpacity>
 
                       <TouchableOpacity onPress={() => toggleFavorite(detailStation.id)}>
