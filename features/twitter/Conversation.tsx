@@ -396,7 +396,7 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
           borderTopWidth: 1,
           borderColor: t.border,
           padding: 12,
-          paddingBottom: keyboardVisible ? 0 : insets.bottom,
+          paddingBottom: (keyboardVisible ? 12 : insets.bottom),
           gap: 8,
         }}
       >
