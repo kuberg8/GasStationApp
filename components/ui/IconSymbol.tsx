@@ -11,6 +11,7 @@ const MAPPING = {
   // See SF Symbols in the SF Symbols app on Mac.
   'house.fill': 'home',
   'map.fill': 'map',
+  'gamecontroller.fill': 'sports-esports',
   'bubble.left.and.bubble.right.fill': 'forum',
   'heart.fill': 'favorite',
   'heart': 'favorite-border',
