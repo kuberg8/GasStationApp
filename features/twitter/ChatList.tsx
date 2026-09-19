@@ -130,7 +130,7 @@ export function ChatList({
         text={choosing ? searchError : messenger.error}
         retry={() => (choosing ? setRetry((value) => value + 1) : void messenger.refresh())}
       />
-      {(choosing ? searching : messenger.loading) && (
+      {choosing && searching && (
         <ActivityIndicator color={t.tint} style={{ padding: 16 }} />
       )}
       <FlatList
@@ -138,7 +138,7 @@ export function ChatList({
         keyExtractor={(item) => item.peer._id}
         keyboardShouldPersistTaps="handled"
         refreshing={!choosing && messenger.loading}
-        onRefresh={() => void messenger.refresh()}
+        onRefresh={choosing ? undefined : () => void messenger.refresh()}
         contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 16 }}
         renderItem={({ item }) => (
           <Pressable

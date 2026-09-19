@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -158,7 +159,11 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
           setValue(post.message);
         },
       },
-      { text: 'Удалить', style: 'destructive', onPress: () => deleteMessage(post) },
+      {
+        text: 'Удалить',
+        style: 'destructive',
+        onPress: () => deleteMessage(post),
+      },
       { text: 'Отмена', style: 'cancel' },
     ]);
   };
@@ -185,85 +190,106 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
         })),
       ],
     );
-  const renderMessage = ({ item }: { item: Post }) => {
+  const renderMessage = ({ item, index }: { item: Post; index: number }) => {
     const own = item.user._id === userId;
     const read = !!history.receipt && position(item) <= history.receipt;
+    const date = new Date(item.created_at);
+    // The list is inverted: the next item is the preceding message in time.
+    const older = history.page?.posts[index + 1];
+    const showDate =
+      !older || new Date(older.created_at).toDateString() !== date.toDateString();
     return (
-      <View
-        style={{
-          paddingHorizontal: 16,
-          paddingVertical: 5,
-          alignItems: own ? 'flex-end' : 'flex-start',
-        }}
-      >
-        <Pressable
-          accessibilityLabel={`${own ? 'Вы' : userName(item.user)}: ${item.message}`}
-          onLongPress={() => actions(item)}
+      <View style={{ paddingHorizontal: 12, paddingVertical: 3 }}>
+        {showDate && (
+          <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 16 }}>
+            <Text
+              style={{
+                color: t.icon,
+                backgroundColor: t.surface,
+                fontSize: 11,
+                paddingHorizontal: 13,
+                paddingVertical: 5,
+                borderRadius: 14,
+              }}
+            >
+              {date.toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </Text>
+          </View>
+        )}
+        <View
           style={{
-            maxWidth: '90%',
-            minWidth: 110,
-            borderRadius: 17,
-            borderBottomRightRadius: own ? 4 : 17,
-            borderBottomLeftRadius: own ? 17 : 4,
-            paddingLeft: 14,
-            paddingRight: own ? 6 : 14,
-            paddingVertical: 9,
-            backgroundColor: own ? t.outgoing : t.surface,
+            flexDirection: 'row',
+            justifyContent: own ? 'flex-end' : 'flex-start',
+            alignItems: 'center',
+            gap: 4,
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Text
-              numberOfLines={1}
-              style={{ color: t.tint, fontWeight: '600', fontSize: 12, flexShrink: 1 }}
-            >
-              {own ? 'Вы' : userName(item.user)}
-            </Text>
-            <Text style={{ color: t.icon, fontSize: 10 }}>
-              {new Date(item.created_at).toLocaleTimeString('ru-RU', {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </Text>
-            {own && (
-              <IconButton
-                name="more-horiz"
-                label="Действия с сообщением"
-                onPress={() => actions(item)}
-                disabled={saving}
-              />
-            )}
-          </View>
-          <Text
-            selectable
-            style={{ color: t.text, fontSize: 16, lineHeight: 23, paddingRight: own ? 8 : 0 }}
-          >
-            {item.message}
-          </Text>
-          <View
+          {own && (
+            <IconButton
+              name="more-horiz"
+              label="Действия с сообщением"
+              onPress={() => actions(item)}
+              disabled={saving}
+            />
+          )}
+          <Pressable
+            accessibilityLabel={`${own ? 'Вы' : userName(item.user)}: ${item.message}`}
+            onLongPress={() => actions(item)}
             style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-end',
-              gap: 6,
-              paddingTop: 6,
-              paddingRight: 8,
+              maxWidth: own ? '82%' : '90%',
+              borderRadius: 16,
+              borderBottomRightRadius: own ? 4 : 16,
+              borderBottomLeftRadius: own ? 16 : 4,
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              backgroundColor: own ? t.outgoing : t.surface,
             }}
           >
-            <Text style={{ color: t.icon, fontSize: 10 }}>
-              {new Date(item.created_at).toLocaleDateString('ru-RU', {
-                day: 'numeric',
-                month: 'short',
-              })}
-            </Text>
-            {own && peerId && (
+            {!own && !peerId && (
               <Text
-                accessibilityLabel={read ? 'Прочитано' : 'Отправлено'}
-                style={{ color: read ? t.tint : t.icon, fontSize: 12 }}
+                style={{
+                  color: t.tint,
+                  fontWeight: '600',
+                  fontSize: 12,
+                  marginBottom: 3,
+                }}
               >
-                {read ? '✓✓' : '✓'}
+                {userName(item.user)}
               </Text>
             )}
-          </View>
-        </Pressable>
+            <Text selectable style={{ color: t.text, fontSize: 16, lineHeight: 22 }}>
+              {item.message}
+            </Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                gap: 4,
+                marginTop: 2,
+              }}
+            >
+              <Text style={{ color: t.icon, fontSize: 10 }}>
+                {date.toLocaleTimeString('ru-RU', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </Text>
+              {own && !!peerId && (
+                <MaterialIcons
+                  name={read ? 'done-all' : 'done'}
+                  size={16}
+                  accessibilityLabel={read ? 'Прочитано' : 'Отправлено'}
+                  color={read ? t.tint : t.icon}
+                />
+              )}
+            </View>
+          </Pressable>
+        </View>
       </View>
     );
   };
@@ -314,7 +340,7 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
           keyExtractor={(post) => post._id}
           renderItem={renderMessage}
           keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
+          keyboardDismissMode="interactive"
           contentContainerStyle={{ paddingVertical: 12, flexGrow: 1 }}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
@@ -324,7 +350,9 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
               <Text style={{ color: t.text, fontSize: 20, fontWeight: '600' }}>
                 Всё начинается с «привет»
               </Text>
-              <Text style={{ color: t.icon, textAlign: 'center' }}>Напишите первое сообщение.</Text>
+              <Text style={{ color: t.icon, textAlign: 'center' }}>
+                Напишите первое сообщение.
+              </Text>
             </View>
           }
           ListFooterComponent={
@@ -343,7 +371,14 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
         />
       )}
       <Notice text={error} />
-      <View style={{ borderTopWidth: 1, borderColor: t.border, padding: 12, gap: 8 }}>
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderColor: t.border,
+          padding: 12,
+          gap: 8,
+        }}
+      >
         {editing && (
           <View style={styles.row}>
             <View style={{ flex: 1 }}>

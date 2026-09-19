@@ -18,6 +18,11 @@ export default function TabLayout() {
         tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarHideOnKeyboard: true,
+        // KeyboardAvoidingView / Android resize owns the keyboard movement.
+        tabBarVisibilityAnimationConfig: {
+          show: { animation: 'timing', config: { duration: 0 } },
+          hide: { animation: 'timing', config: { duration: 0 } },
+        },
       }}
     >
       <Tabs.Screen
