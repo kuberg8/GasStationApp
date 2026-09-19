@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   BackHandler,
   KeyboardAvoidingView,
@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from 'expo-router';
 import { useIsFocused } from 'expo-router/react-navigation';
 import { Endpoints, Session, User } from './api';
 import { ChatList } from './ChatList';
@@ -60,6 +61,12 @@ function Messenger({
   const { width } = useWindowDimensions();
   const wide = width >= 760;
   const [peer, setPeer] = useState<User | null | undefined>(undefined);
+  const navigation = useNavigation();
+  const chatOpen = peer !== undefined;
+  useLayoutEffect(() => {
+    navigation.setOptions({ tabBarStyle: chatOpen ? { display: 'none' } : undefined });
+    return () => navigation.setOptions({ tabBarStyle: undefined });
+  }, [navigation, chatOpen]);
   const drafts = useRef<Record<string, string>>({});
   const messenger = useMessenger(endpoints, session, active, onExpired);
   useEffect(() => {

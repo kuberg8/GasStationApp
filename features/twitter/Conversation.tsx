@@ -5,12 +5,15 @@ import {
   Alert,
   AppState,
   FlatList,
+  Keyboard,
+  Platform,
   Pressable,
   Text,
   TextInput,
   View,
   ViewToken,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Post, position, User, userName } from './api';
 import { MessengerState, useConversation } from './useMessenger';
 import { Avatar, Button, IconButton, Notice, styles } from './ui';
@@ -26,6 +29,22 @@ type Props = {
 };
 export function Conversation({ messenger, peer, userId, onBack, active, drafts }: Props) {
   const t = useTwitterTheme();
+  const insets = useSafeAreaInsets();
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
   const peerId = peer?._id || '';
   const history = useConversation(messenger, peerId);
   const [value, setValue] = useState(drafts.current[peerId] || '');
@@ -372,10 +391,12 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
       )}
       <Notice text={error} />
       <View
+        testID="message-composer"
         style={{
           borderTopWidth: 1,
           borderColor: t.border,
           padding: 12,
+          paddingBottom: keyboardVisible ? 0 : insets.bottom,
           gap: 8,
         }}
       >
