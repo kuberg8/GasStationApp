@@ -15,6 +15,9 @@ jest.mock('expo-font', () => ({ useFonts: () => [true] }));
 jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAsync: jest.fn() }));
 jest.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 jest.mock('react-native-reanimated', () => ({}));
+jest.mock('react-native-keyboard-controller', () =>
+  require('react-native-keyboard-controller/jest'),
+);
 jest.mock('../ServerSettings', () => ({ ServerSettings: () => null }));
 jest.mock('@expo/vector-icons/MaterialIcons', () => 'Icon');
 jest.mock('expo-router/react-navigation', () => ({

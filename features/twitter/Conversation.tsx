@@ -5,15 +5,13 @@ import {
   Alert,
   AppState,
   FlatList,
-  Keyboard,
-  Platform,
   Pressable,
   Text,
   TextInput,
   View,
   ViewToken,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardChatView } from './KeyboardChatView';
 import { Post, position, User, userName } from './api';
 import { MessengerState, useConversation } from './useMessenger';
 import { Avatar, Button, IconButton, Notice, styles } from './ui';
@@ -29,22 +27,6 @@ type Props = {
 };
 export function Conversation({ messenger, peer, userId, onBack, active, drafts }: Props) {
   const t = useTwitterTheme();
-  const insets = useSafeAreaInsets();
-  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
-  useEffect(() => {
-    const show = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setKeyboardVisible(true),
-    );
-    const hide = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setKeyboardVisible(false),
-    );
-    return () => {
-      show.remove();
-      hide.remove();
-    };
-  }, []);
   const peerId = peer?._id || '';
   const history = useConversation(messenger, peerId);
   const [value, setValue] = useState(drafts.current[peerId] || '');
@@ -312,8 +294,80 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
       </View>
     );
   };
+  const composer = (
+    <View
+      testID="message-composer"
+      style={{
+        backgroundColor: t.background,
+        borderTopWidth: 1,
+        borderColor: t.border,
+        padding: 12,
+        gap: 8,
+      }}
+    >
+      {editing && (
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: t.tint, fontWeight: '600' }}>Редактирование</Text>
+            <Text numberOfLines={1} style={{ color: t.icon }}>
+              {editing.message}
+            </Text>
+          </View>
+          <IconButton
+            name="close"
+            label="Отменить редактирование"
+            disabled={saving}
+            onPress={() => {
+              setEditing(null);
+              setValue(drafts.current[peerId] || '');
+            }}
+          />
+        </View>
+      )}
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
+        <TextInput
+          accessibilityLabel="Сообщение"
+          placeholder="Напишите сообщение…"
+          placeholderTextColor={t.icon}
+          multiline
+          maxLength={5000}
+          value={value}
+          onChangeText={changeText}
+          editable={!saving}
+          onBlur={() => sendTyping(peerId, false)}
+          style={{
+            flex: 1,
+            minHeight: 46,
+            maxHeight: 130,
+            backgroundColor: t.surface,
+            borderRadius: 14,
+            color: t.text,
+            fontSize: 16,
+            paddingHorizontal: 14,
+            paddingTop: 12,
+            paddingBottom: 12,
+          }}
+        />
+        {saving ? (
+          <ActivityIndicator color={t.tint} style={{ width: 44, height: 46 }} />
+        ) : (
+          <IconButton
+            name="send"
+            label={editing ? 'Сохранить сообщение' : 'Отправить сообщение'}
+            disabled={!value.trim() || !history.page}
+            onPress={() => void submit()}
+          />
+        )}
+      </View>
+      {!!value.length && (
+        <Text style={{ color: t.icon, fontSize: 11, textAlign: 'right' }}>
+          {value.length} / 5000
+        </Text>
+      )}
+    </View>
+  );
   return (
-    <View style={{ flex: 1, backgroundColor: t.background }}>
+    <KeyboardChatView composer={composer} style={{ flex: 1, backgroundColor: t.background }}>
       <View style={[styles.header, { borderColor: t.border, paddingHorizontal: 6 }]}>
         <IconButton name="arrow-back" label="Назад к чатам" onPress={onBack} />
         <Avatar
@@ -390,76 +444,6 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
         />
       )}
       <Notice text={error} />
-      <View
-        testID="message-composer"
-        style={{
-          borderTopWidth: 1,
-          borderColor: t.border,
-          padding: 12,
-          paddingBottom: (keyboardVisible ? 12 : insets.bottom),
-          gap: 8,
-        }}
-      >
-        {editing && (
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: t.tint, fontWeight: '600' }}>Редактирование</Text>
-              <Text numberOfLines={1} style={{ color: t.icon }}>
-                {editing.message}
-              </Text>
-            </View>
-            <IconButton
-              name="close"
-              label="Отменить редактирование"
-              disabled={saving}
-              onPress={() => {
-                setEditing(null);
-                setValue(drafts.current[peerId] || '');
-              }}
-            />
-          </View>
-        )}
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-end' }}>
-          <TextInput
-            accessibilityLabel="Сообщение"
-            placeholder="Напишите сообщение…"
-            placeholderTextColor={t.icon}
-            multiline
-            maxLength={5000}
-            value={value}
-            onChangeText={changeText}
-            editable={!saving}
-            onBlur={() => sendTyping(peerId, false)}
-            style={{
-              flex: 1,
-              minHeight: 46,
-              maxHeight: 130,
-              backgroundColor: t.surface,
-              borderRadius: 14,
-              color: t.text,
-              fontSize: 16,
-              paddingHorizontal: 14,
-              paddingTop: 12,
-              paddingBottom: 12,
-            }}
-          />
-          {saving ? (
-            <ActivityIndicator color={t.tint} style={{ width: 44, height: 46 }} />
-          ) : (
-            <IconButton
-              name="send"
-              label={editing ? 'Сохранить сообщение' : 'Отправить сообщение'}
-              disabled={!value.trim() || !history.page}
-              onPress={() => void submit()}
-            />
-          )}
-        </View>
-        {!!value.length && (
-          <Text style={{ color: t.icon, fontSize: 11, textAlign: 'right' }}>
-            {value.length} / 5000
-          </Text>
-        )}
-      </View>
-    </View>
+    </KeyboardChatView>
   );
 }

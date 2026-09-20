@@ -1,8 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   BackHandler,
-  KeyboardAvoidingView,
-  Platform,
   Text,
   useWindowDimensions,
   View,
@@ -24,10 +22,7 @@ export default function TwitterScreen() {
   const { endpoints, session, settings, expired, openSettings, logout } = useAuth();
   if (!endpoints || !session) return null;
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: t.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={{ flex: 1, backgroundColor: t.background }}>
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
         <Messenger
           key={`${endpoints.api}:${session.user_id}`}
@@ -39,7 +34,7 @@ export default function TwitterScreen() {
           onLogout={logout}
         />
       </SafeAreaView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 function Messenger({

@@ -1,10 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  BackHandler,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from 'expo-router/react-navigation';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { useGameColors } from './theme';
 import {
   Board,
   Mark,
@@ -15,25 +22,16 @@ import {
   playHumanMove,
 } from './ticTacToe';
 
-function useGameColors() {
-  const dark = useColorScheme() === 'dark';
-  return {
-    ...Colors[dark ? 'dark' : 'light'],
-    surface: dark ? '#202B31' : '#EAF2F6',
-    accent: dark ? '#7CD4F3' : '#087C9F',
-    opponent: dark ? '#F7BC8A' : '#B6571D',
-    winning: dark ? '#214E47' : '#D4EFE5',
-  };
-}
+const ChessGame = lazy(() => import('./ChessGame'));
 
 export default function GamesScreen() {
   const colors = useGameColors();
   const focused = useIsFocused();
-  const [selected, setSelected] = useState(false);
+  const [selected, setSelected] = useState<'tic-tac-toe' | 'chess' | null>(null);
   useEffect(() => {
     if (!focused || !selected) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      setSelected(false);
+      setSelected(null);
       return true;
     });
     return () => subscription.remove();
@@ -48,13 +46,21 @@ export default function GamesScreen() {
         <View style={styles.screen}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => setSelected(false)}
+            onPress={() => setSelected(null)}
             style={styles.back}
           >
             <MaterialIcons name="arrow-back" size={22} color={colors.accent} />
             <Text style={{ color: colors.accent, fontSize: 16 }}>Все игры</Text>
           </Pressable>
-          <TicTacToe active={focused} />
+          {selected === 'chess' ? (
+            <Suspense
+              fallback={<ActivityIndicator style={{ flex: 1 }} color={colors.accent} />}
+            >
+              <ChessGame active={focused} />
+            </Suspense>
+          ) : (
+            <TicTacToe active={focused} />
+          )}
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
@@ -66,7 +72,7 @@ export default function GamesScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Играть в крестики-нолики"
-            onPress={() => setSelected(true)}
+            onPress={() => setSelected('tic-tac-toe')}
             style={({ pressed }) => [
               styles.card,
               { backgroundColor: colors.surface, opacity: pressed ? 0.75 : 1 },
@@ -86,6 +92,27 @@ export default function GamesScreen() {
             </Text>
             <View style={styles.cardFooter}>
               <Text style={{ color: colors.icon, fontSize: 13 }}>1 игрок · Без интернета</Text>
+              <View style={[styles.play, { backgroundColor: colors.accent }]}>
+                <MaterialIcons name="play-arrow" size={22} color={colors.background} />
+              </View>
+            </View>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Играть в шахматы"
+            onPress={() => setSelected('chess')}
+            style={({ pressed }) => [
+              styles.card,
+              { backgroundColor: colors.surface, opacity: pressed ? 0.75 : 1 },
+            ]}
+          >
+            <MaterialIcons name="grid-on" size={44} color={colors.accent} />
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Шахматы</Text>
+            <Text style={[styles.description, { color: colors.icon }]}>
+              Классическая партия вдвоём на одном телефоне.
+            </Text>
+            <View style={styles.cardFooter}>
+              <Text style={{ color: colors.icon, fontSize: 13 }}>2 игрока · Без интернета</Text>
               <View style={[styles.play, { backgroundColor: colors.accent }]}>
                 <MaterialIcons name="play-arrow" size={22} color={colors.background} />
               </View>

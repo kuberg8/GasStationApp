@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/features/twitter/AuthProvider';
 import { useTwitterTheme } from '@/features/twitter/theme';
 import { Button, Notice, styles } from '@/features/twitter/ui';
 import 'react-native-reanimated';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -33,10 +34,12 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthProvider>
-        <AuthenticatedRoutes />
-      </AuthProvider>
-      <StatusBar style="auto" />
+      <KeyboardProvider>
+        <AuthProvider>
+          <AuthenticatedRoutes />
+        </AuthProvider>
+        <StatusBar style="auto" />
+      </KeyboardProvider>
     </ThemeProvider>
   );
 }

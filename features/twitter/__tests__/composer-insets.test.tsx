@@ -1,8 +1,21 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
-import { Keyboard, KeyboardEvent, Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { KeyboardChatView } from '../KeyboardChatView.native';
 import { Conversation } from '../Conversation';
 import { MessengerState } from '../useMessenger';
+
+const mockKeyboard = { height: { value: 0 }, progress: { value: 0 } };
+jest.mock('react-native-reanimated', () => ({
+  __esModule: true,
+  default: { View: require('react-native').View },
+  useAnimatedStyle: (style: () => object) => style(),
+}));
+
+jest.mock('react-native-keyboard-controller', () => ({
+  KeyboardStickyView: require('react-native').View,
+  useReanimatedKeyboardAnimation: () => mockKeyboard,
+}));
 
 jest.mock('../theme', () => ({ useTwitterTheme: () => ({}) }));
 jest.mock('../ui', () => ({
@@ -17,34 +30,43 @@ jest.mock('../useMessenger', () => ({
   useConversation: () => ({ loading: true, page: null }),
 }));
 
-test('keeps the composer above the home indicator and removes only the safe inset for the keyboard', async () => {
-  const listeners: Record<string, () => void> = {};
-  jest.spyOn(Keyboard, 'isVisible').mockReturnValue(false);
-  const addListener = Keyboard.addListener.bind(Keyboard);
-  jest.spyOn(Keyboard, 'addListener').mockImplementation((event, callback) => {
-    listeners[event] = () => callback({} as KeyboardEvent);
-    return addListener(event, callback);
-  });
+test('keeps the composer spacing constant while the chat follows keyboard frames', async () => {
   const messenger = {
     api: {}, sendTyping: jest.fn(), refresh: jest.fn(),
     presence: [], typingPeers: [],
   } as unknown as MessengerState;
   let tree!: renderer.ReactTestRenderer;
+  let dock!: renderer.ReactTestRenderer;
   try {
     await act(async () => {
       tree = renderer.create(<Conversation messenger={messenger} peer={null}
         userId="alice" onBack={jest.fn()} active drafts={{ current: {} }} />);
+      dock = renderer.create(<KeyboardChatView testID="keyboard-dock" composer={null} />);
     });
-    const bottomPadding = () => StyleSheet.flatten(
+    const composerStyle = StyleSheet.flatten(
       tree.root.findAllByProps({ testID: 'message-composer' })[0].props.style,
-    ).paddingBottom;
-    expect(bottomPadding()).toBe(46);
-    await act(async () => listeners[Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow']());
-    expect(bottomPadding()).toBe(12);
-    await act(async () => listeners[Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide']());
-    expect(bottomPadding()).toBe(46);
+    );
+    expect(composerStyle.padding).toBe(12);
+    expect(composerStyle.paddingBottom).toBeUndefined();
+    const sticky = dock.root.findAllByProps({ testID: 'keyboard-composer-dock' })[0];
+    expect(sticky.props.offset).toEqual({ closed: -34, opened: 0 });
+    await act(async () => {
+      sticky.props.onLayout({ nativeEvent: { layout: { height: 72 } } });
+    });
+    // Opening, a keyboard height change, and reversing an interactive dismissal.
+    for (const height of [0, 18, 90, 180, 320, 370, 210, 90, 160, 0]) {
+      mockKeyboard.height.value = -height;
+      mockKeyboard.progress.value = Math.min(height / 320, 1);
+      await act(async () => {
+        dock.update(<KeyboardChatView testID="keyboard-dock" composer={null} />);
+      });
+      const view = dock.root.findAllByProps({ testID: 'keyboard-chat-content' })
+        .find((node) => node.props.style !== undefined)!;
+      expect(StyleSheet.flatten(view.props.style).paddingBottom).toBe(72 + height + 34 * (1 - mockKeyboard.progress.value));
+    }
   } finally {
-    await act(async () => tree?.unmount());
-    jest.restoreAllMocks();
+    mockKeyboard.height.value = 0;
+    mockKeyboard.progress.value = 0;
+    await act(async () => { tree?.unmount(); dock?.unmount(); });
   }
 });
