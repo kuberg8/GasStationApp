@@ -1,7 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   AppState,
   FlatList,
@@ -11,7 +10,9 @@ import {
   View,
   ViewToken,
 } from 'react-native';
+import { ProgressRing } from './ProgressRing';
 import { KeyboardChatView } from './KeyboardChatView';
+import type { OutgoingPost } from './outbox';
 import { Post, position, User, userName } from './api';
 import { MessengerState, useConversation } from './useMessenger';
 import { Avatar, Button, IconButton, Notice, styles } from './ui';
@@ -87,9 +88,9 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
     };
   }, [visibleMessage, active, appActive, peerId, api, refreshList, messenger.revision]);
   const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken<Post>[] }) => {
+    ({ viewableItems }: { viewableItems: ViewToken<OutgoingPost>[] }) => {
       const newest = viewableItems
-        .filter((item) => item.isViewable)
+        .filter((item) => item.isViewable && !item.item.deliveryStatus)
         .map((item) => item.item)
         .sort((a, b) => position(b).localeCompare(position(a)))[0];
       if (newest) setVisibleMessage(newest);
@@ -106,21 +107,27 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
   };
   const submit = async () => {
     if (!value.trim() || pending.current) return;
+    if (!editing) {
+      messenger.outbox.send(value.trim(), peerId);
+      drafts.current[peerId] = '';
+      setValue('');
+      setError('');
+      sendTyping(peerId, false);
+      clearTimeout(typingTimer.current);
+      list.current?.scrollToOffset({ offset: 0, animated: true });
+      return;
+    }
     pending.current = true;
     setSaving(true);
     setError('');
     sendTyping(peerId, false);
     const submitted = value;
     try {
-      const result = editing
-        ? await api.edit(editing._id, submitted.trim())
-        : await api.send(submitted.trim(), peerId);
+      const result = await api.edit(editing._id, submitted.trim());
       if (!mounted.current) return;
       history.apply(result.post);
-      if (!editing) drafts.current[peerId] = '';
       setValue(drafts.current[peerId] || '');
       setEditing(null);
-      if (!editing) list.current?.scrollToOffset({ offset: 0, animated: true });
     } catch (e) {
       if (mounted.current) setError((e as Error).message);
     } finally {
@@ -150,7 +157,8 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
         },
       },
     ]);
-  const actions = (post: Post) => {
+  const actions = (post: OutgoingPost) => {
+    if (post.deliveryStatus) return;
     if (saving || post.user._id !== userId) return;
     Alert.alert('Сообщение', undefined, [
       {
@@ -180,6 +188,7 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
           onPress: async () => {
             try {
               await api.removeChat(peerId, scope);
+              messenger.outbox.clearPeer(peerId);
               if (mounted.current) {
                 void messenger.refresh();
                 onBack();
@@ -191,7 +200,7 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
         })),
       ],
     );
-  const renderMessage = ({ item, index }: { item: Post; index: number }) => {
+  const renderMessage = ({ item, index }: { item: OutgoingPost; index: number }) => {
     const own = item.user._id === userId;
     const read = !!history.receipt && position(item) <= history.receipt;
     const date = new Date(item.created_at);
@@ -229,7 +238,7 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
             gap: 4,
           }}
         >
-          {own && (
+          {own && !item.deliveryStatus && (
             <IconButton
               name="more-horiz"
               label="Действия с сообщением"
@@ -280,7 +289,16 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
                   minute: '2-digit',
                 })}
               </Text>
-              {own && !!peerId && (
+              {own && item.deliveryStatus === 'sending' && (
+                <ProgressRing size={12} color={t.icon} accessibilityLabel="Отправляется" />
+              )}
+              {own && item.deliveryStatus === 'failed' && (
+                <Pressable accessibilityRole="button" accessibilityLabel="Не доставлено. Повторить отправку"
+                  onPress={() => messenger.outbox.retry(item._id)}>
+                  <Text style={{ color: t.danger, fontSize: 12 }}>Не доставлено · Повторить</Text>
+                </Pressable>
+              )}
+              {own && !item.deliveryStatus && (
                 <MaterialIcons
                   name={read ? 'done-all' : 'done'}
                   size={16}
@@ -349,7 +367,7 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
           }}
         />
         {saving ? (
-          <ActivityIndicator color={t.tint} style={{ width: 44, height: 46 }} />
+          <ProgressRing size={20} color={t.tint} accessibilityLabel="Сохранение" style={{ width: 44, height: 46 }} />
         ) : (
           <IconButton
             name="send"
@@ -359,11 +377,6 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
           />
         )}
       </View>
-      {!!value.length && (
-        <Text style={{ color: t.icon, fontSize: 11, textAlign: 'right' }}>
-          {value.length} / 5000
-        </Text>
-      )}
     </View>
   );
   return (
@@ -403,14 +416,14 @@ export function Conversation({ messenger, peer, userId, onBack, active, drafts }
       <Notice text={history.error} retry={() => void history.refresh()} />
       {history.loading && !history.page ? (
         <View style={{ flex: 1, justifyContent: 'center' }}>
-          <ActivityIndicator color={t.tint} />
+          <ProgressRing size={26} color={t.tint} style={{ alignSelf: 'center' }} />
         </View>
       ) : (
         <FlatList
           ref={list}
           inverted
           data={history.page?.posts || []}
-          keyExtractor={(post) => post._id}
+          keyExtractor={(post) => post.clientMessageId ? `${post.user._id}:${post.clientMessageId}` : post._id}
           renderItem={renderMessage}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"

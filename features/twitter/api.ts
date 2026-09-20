@@ -1,6 +1,7 @@
 export type User = { _id: string; first_name: string; last_name?: string };
 export type Session = { token: string; user_id: string };
 export type Post = {
+  clientMessageId?: string;
   _id: string;
   message: string;
   created_at: number;
@@ -110,8 +111,8 @@ export function createTwitterApi(endpoints: Endpoints, token?: string, onExpired
       if (before) params.set('before', before);
       return request<Page>(`/posts?${params}`);
     },
-    send: (message: string, peer = '') =>
-      request<{ post: Post }>('/posts', 'POST', { message, recipient: peer || null }),
+    send: (message: string, peer = '', clientMessageId?: string) =>
+      request<{ post: Post }>('/posts', 'POST', { message, recipient: peer || null, ...(clientMessageId ? { clientMessageId } : {}) }),
     edit: (id: string, message: string) =>
       request<{ post: Post }>(`/posts/${encodeURIComponent(id)}`, 'PUT', { message }),
     remove: (id: string) => request<{ post: Post }>(`/posts/${encodeURIComponent(id)}`, 'DELETE'),

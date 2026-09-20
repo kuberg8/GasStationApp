@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createOutbox, mergeOutgoing } from './outbox';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 import { Chat, createTwitterApi, Endpoints, mergePosts, Page, Post, Session } from './api';
 
@@ -53,6 +54,9 @@ export function useMessenger(
       if (mounted.current && request === listRequest.current) setLoading(false);
     }
   }, [api]);
+  const outbox = useMemo(() => createOutbox(session.user_id,
+    async (message, peer, id) => (await api.send(message, peer, id)).post,
+    () => { void refresh(); }), [api, session.user_id, refresh]);
   const sendTyping = useCallback((peer: string, value: boolean) => {
     const socket = ws.current;
     if (socket?.readyState !== 1) return;
@@ -205,6 +209,7 @@ export function useMessenger(
   }, [active, refresh]);
   return {
     api,
+    outbox,
     chats,
     unread,
     connected,
@@ -221,7 +226,8 @@ export function useMessenger(
 export type MessengerState = ReturnType<typeof useMessenger>;
 
 export function useConversation(messenger: MessengerState, peer: string) {
-  const { api, events, revision } = messenger;
+  const { api, events, revision, outbox } = messenger;
+  const outgoing = useSyncExternalStore(outbox?.subscribe || emptySubscribe, outbox?.snapshot || emptySnapshot);
   const seenEvent = useRef(events.at(-1)?.sequence || 0);
   const [page, setPage] = useState<Page | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
@@ -273,6 +279,7 @@ export function useConversation(messenger: MessengerState, peer: string) {
         );
       if (event.type === 'chat:deleted') {
         change.current++;
+        outbox?.clearPeer(peer);
         setPage({ posts: [], nextCursor: null });
       }
       if (event.type === 'posts:changed') {
@@ -293,7 +300,7 @@ export function useConversation(messenger: MessengerState, peer: string) {
         } else void refresh();
       }
     }
-  }, [events, peer, refresh]);
+  }, [events, peer, refresh, outbox]);
   const loadOlder = async () => {
     const cursor = pageRef.current?.nextCursor;
     if (!cursor || olderBusy.current) return;
@@ -317,6 +324,7 @@ export function useConversation(messenger: MessengerState, peer: string) {
   };
   const apply = (post: Post, remove = false) => {
     change.current++;
+    if (remove) outbox?.remove(post._id);
     setPage((previous) => ({
       nextCursor: previous?.nextCursor || null,
       posts: remove
@@ -325,5 +333,14 @@ export function useConversation(messenger: MessengerState, peer: string) {
     }));
     void messenger.refresh();
   };
-  return { page, receipt, error, loading, olderLoading, loadOlder, refresh, apply };
+  useEffect(() => { outbox?.reconcile(page?.posts || []); }, [outbox, page]);
+  const visiblePage = useMemo(() => page ? {
+    ...page, posts: mergeOutgoing(page.posts, outgoing, peer).sort((a, b) =>
+      b.created_at - a.created_at || b._id.localeCompare(a._id)),
+  } : null, [page, outgoing, peer]);
+  return { page: visiblePage, receipt, error, loading, olderLoading, loadOlder, refresh, apply };
 }
+
+const emptyOutgoing: never[] = [];
+const emptySnapshot = () => emptyOutgoing;
+const emptySubscribe = () => () => {};
